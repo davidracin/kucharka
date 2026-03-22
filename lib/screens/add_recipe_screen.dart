@@ -14,7 +14,7 @@ class _AddRecipeScreenState extends State<AddRecipeScreen> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
-  final TextEditingController _ingredientsController = TextEditingController();
+  final TextEditingController _ingredientInputController = TextEditingController();
   final TextEditingController _customStepLabelController = TextEditingController();
   final TextEditingController _stepTextController = TextEditingController();
 
@@ -22,6 +22,7 @@ class _AddRecipeScreenState extends State<AddRecipeScreen> {
 
   bool _isSaving = false;
   String _selectedStepLabel = '1';
+  final List<String> _ingredients = <String>[];
   final List<Map<String, String>> _steps = <Map<String, String>>[];
 
   static const String _customLabelOption = 'Vlastní';
@@ -30,10 +31,35 @@ class _AddRecipeScreenState extends State<AddRecipeScreen> {
   void dispose() {
     _nameController.dispose();
     _descriptionController.dispose();
-    _ingredientsController.dispose();
+    _ingredientInputController.dispose();
     _customStepLabelController.dispose();
     _stepTextController.dispose();
     super.dispose();
+  }
+
+  void _addIngredient() {
+    final ingredient = _ingredientInputController.text.trim();
+    if (ingredient.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Vyplňte ingredienci.')),
+      );
+      return;
+    }
+
+    setState(() {
+      _ingredients.add(ingredient);
+      _ingredientInputController.clear();
+    });
+  }
+
+  void _removeIngredient(int index) {
+    setState(() {
+      _ingredients.removeAt(index);
+    });
+  }
+
+  String _buildIngredientsText() {
+    return _ingredients.join('\n');
   }
 
   void _addStep() {
@@ -99,6 +125,13 @@ class _AddRecipeScreenState extends State<AddRecipeScreen> {
       return;
     }
 
+    if (_ingredients.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Přidejte alespoň jednu ingredienci.')),
+      );
+      return;
+    }
+
     setState(() {
       _isSaving = true;
     });
@@ -107,7 +140,7 @@ class _AddRecipeScreenState extends State<AddRecipeScreen> {
       await _firestoreService.addRecipe(
         name: _nameController.text.trim(),
         description: _descriptionController.text.trim(),
-        ingredients: _ingredientsController.text.trim(),
+        ingredients: _buildIngredientsText(),
         steps: _buildStepsText(),
       );
 
@@ -173,16 +206,45 @@ class _AddRecipeScreenState extends State<AddRecipeScreen> {
               validator: _requiredValidator,
             ),
             const SizedBox(height: 12),
-            TextFormField(
-              controller: _ingredientsController,
-              decoration: const InputDecoration(
-                labelText: 'Ingredience',
-                border: OutlineInputBorder(),
-                hintText: 'Např.: mouka, vejce, mléko',
-              ),
-              maxLines: 4,
-              validator: _requiredValidator,
+            Text(
+              'Ingredience',
+              style: Theme.of(context).textTheme.titleMedium,
             ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _ingredientInputController,
+              decoration: const InputDecoration(
+                labelText: 'Přidat ingredienci',
+                border: OutlineInputBorder(),
+                hintText: 'Např.: 2 vejce',
+              ),
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: _addIngredient,
+              icon: const Icon(Icons.add),
+              label: const Text('Přidat ingredienci'),
+            ),
+            const SizedBox(height: 12),
+            if (_ingredients.isEmpty)
+              const Text('Zatím nejsou přidané žádné ingredience.')
+            else
+              Column(
+                children: List<Widget>.generate(_ingredients.length, (index) {
+                  final ingredient = _ingredients[index];
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    child: ListTile(
+                      title: Text(ingredient),
+                      trailing: IconButton(
+                        icon: const Icon(Icons.delete_outline),
+                        tooltip: 'Smazat ingredienci',
+                        onPressed: () => _removeIngredient(index),
+                      ),
+                    ),
+                  );
+                }),
+              ),
             const SizedBox(height: 20),
             Text(
               'Kroky receptu',
