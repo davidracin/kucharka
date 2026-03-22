@@ -16,6 +16,26 @@ class RecipeListScreen extends StatefulWidget {
 
 class _RecipeListScreenState extends State<RecipeListScreen> {
   final FirestoreService _firestoreService = FirestoreService();
+  final TextEditingController _searchController = TextEditingController();
+
+  String _searchQuery = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  bool _matchesSearch(Recipe recipe) {
+    final query = _searchQuery.trim().toLowerCase();
+    if (query.isEmpty) {
+      return true;
+    }
+
+    return recipe.ingredients.toLowerCase().contains(query) ||
+        recipe.name.toLowerCase().contains(query) ||
+        recipe.description.toLowerCase().contains(query);
+  }
 
   Future<void> _openAddRecipe() async {
     await Navigator.of(context).push(
@@ -105,6 +125,7 @@ class _RecipeListScreenState extends State<RecipeListScreen> {
           }
 
           final recipes = snapshot.data ?? <Recipe>[];
+          final filteredRecipes = recipes.where(_matchesSearch).toList();
 
           if (recipes.isEmpty) {
             return const Center(
@@ -112,23 +133,62 @@ class _RecipeListScreenState extends State<RecipeListScreen> {
             );
           }
 
-          return ListView.builder(
-            padding: const EdgeInsets.all(12),
-            itemCount: recipes.length,
-            itemBuilder: (context, index) {
-              final recipe = recipes[index];
-              return RecipeCard(
-                recipe: recipe,
-                onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => RecipeDetailScreen(recipe: recipe),
-                    ),
-                  );
-                },
-                onDelete: () => _deleteRecipe(recipe),
-              );
-            },
+          return Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+                child: TextField(
+                  controller: _searchController,
+                  onChanged: (value) {
+                    setState(() {
+                      _searchQuery = value;
+                    });
+                  },
+                  decoration: InputDecoration(
+                    labelText: 'Vyhledat podle ingredience',
+                    hintText: 'Např. vejce, mouka, mléko',
+                    prefixIcon: const Icon(Icons.search),
+                    border: const OutlineInputBorder(),
+                    suffixIcon: _searchQuery.isEmpty
+                        ? null
+                        : IconButton(
+                            tooltip: 'Vymazat hledání',
+                            icon: const Icon(Icons.close),
+                            onPressed: () {
+                              _searchController.clear();
+                              setState(() {
+                                _searchQuery = '';
+                              });
+                            },
+                          ),
+                  ),
+                ),
+              ),
+              Expanded(
+                child: filteredRecipes.isEmpty
+                    ? const Center(
+                        child: Text('Žádný recept neodpovídá hledání.'),
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                        itemCount: filteredRecipes.length,
+                        itemBuilder: (context, index) {
+                          final recipe = filteredRecipes[index];
+                          return RecipeCard(
+                            recipe: recipe,
+                            onTap: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute<void>(
+                                  builder: (_) => RecipeDetailScreen(recipe: recipe),
+                                ),
+                              );
+                            },
+                            onDelete: () => _deleteRecipe(recipe),
+                          );
+                        },
+                      ),
+              ),
+            ],
           );
         },
       ),
