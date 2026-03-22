@@ -45,6 +45,14 @@ class _RecipeListScreenState extends State<RecipeListScreen> {
     );
   }
 
+  Future<void> _openEditRecipe(Recipe recipe) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => AddRecipeScreen(recipeToEdit: recipe),
+      ),
+    );
+  }
+
   Future<void> _deleteRecipe(Recipe recipe) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -183,6 +191,7 @@ class _RecipeListScreenState extends State<RecipeListScreen> {
                                 ),
                               );
                             },
+                            onEdit: () => _openEditRecipe(recipe),
                             onDelete: () => _deleteRecipe(recipe),
                           );
                         },

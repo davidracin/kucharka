@@ -8,11 +8,13 @@ class RecipeCard extends StatelessWidget {
     required this.recipe,
     required this.onTap,
     required this.onDelete,
+    this.onEdit,
   });
 
   final Recipe recipe;
   final VoidCallback onTap;
   final VoidCallback onDelete;
+  final VoidCallback? onEdit;
 
   @override
   Widget build(BuildContext context) {
@@ -26,10 +28,21 @@ class RecipeCard extends StatelessWidget {
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
         ),
-        trailing: IconButton(
-          onPressed: onDelete,
-          icon: const Icon(Icons.delete_outline),
-          tooltip: 'Smazat recept',
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (onEdit != null)
+              IconButton(
+                onPressed: onEdit,
+                icon: const Icon(Icons.edit_outlined),
+                tooltip: 'Upravit recept',
+              ),
+            IconButton(
+              onPressed: onDelete,
+              icon: const Icon(Icons.delete_outline),
+              tooltip: 'Smazat recept',
+            ),
+          ],
         ),
       ),
     );

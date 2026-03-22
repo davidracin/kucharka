@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../models/recipe.dart';
 import '../services/firestore_service.dart';
 
 class AddRecipeScreen extends StatefulWidget {
-  const AddRecipeScreen({super.key});
+  const AddRecipeScreen({super.key, this.recipeToEdit});
+
+  final Recipe? recipeToEdit;
 
   @override
   State<AddRecipeScreen> createState() => _AddRecipeScreenState();
@@ -26,6 +29,52 @@ class _AddRecipeScreenState extends State<AddRecipeScreen> {
   final List<Map<String, String>> _steps = <Map<String, String>>[];
 
   static const String _customLabelOption = 'Vlastní';
+
+  bool get _isEditMode => widget.recipeToEdit != null;
+
+  @override
+  void initState() {
+    super.initState();
+
+    final recipe = widget.recipeToEdit;
+    if (recipe == null) {
+      return;
+    }
+
+    _nameController.text = recipe.name;
+    _descriptionController.text = recipe.description;
+
+    final ingredientLines = recipe.ingredients
+        .split('\n')
+        .map((line) => line.trim())
+        .where((line) => line.isNotEmpty)
+        .toList();
+    _ingredients.addAll(ingredientLines);
+
+    final stepLines = recipe.steps
+        .split('\n')
+        .map((line) => line.trim())
+        .where((line) => line.isNotEmpty)
+        .toList();
+
+    for (final line in stepLines) {
+      final separatorIndex = line.indexOf('. ');
+      if (separatorIndex <= 0) {
+        _steps.add(<String, String>{
+          'label': '${_steps.length + 1}',
+          'text': line,
+        });
+        continue;
+      }
+
+      final label = line.substring(0, separatorIndex).trim();
+      final text = line.substring(separatorIndex + 2).trim();
+      _steps.add(<String, String>{
+        'label': label.isEmpty ? '${_steps.length + 1}' : label,
+        'text': text,
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -137,18 +186,32 @@ class _AddRecipeScreenState extends State<AddRecipeScreen> {
     });
 
     try {
-      await _firestoreService.addRecipe(
-        name: _nameController.text.trim(),
-        description: _descriptionController.text.trim(),
-        ingredients: _buildIngredientsText(),
-        steps: _buildStepsText(),
-      );
+      if (_isEditMode) {
+        await _firestoreService.updateRecipe(
+          id: widget.recipeToEdit!.id,
+          name: _nameController.text.trim(),
+          description: _descriptionController.text.trim(),
+          ingredients: _buildIngredientsText(),
+          steps: _buildStepsText(),
+        );
+      } else {
+        await _firestoreService.addRecipe(
+          name: _nameController.text.trim(),
+          description: _descriptionController.text.trim(),
+          ingredients: _buildIngredientsText(),
+          steps: _buildStepsText(),
+        );
+      }
 
       if (!mounted) {
         return;
       }
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Recept byl přidán')),
+        SnackBar(
+          content: Text(
+            _isEditMode ? 'Recept byl upraven' : 'Recept byl přidán',
+          ),
+        ),
       );
       Navigator.of(context).pop();
     } catch (error) {
@@ -180,7 +243,7 @@ class _AddRecipeScreenState extends State<AddRecipeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Přidat recept'),
+        title: Text(_isEditMode ? 'Upravit recept' : 'Přidat recept'),
       ),
       body: Form(
         key: _formKey,
@@ -336,7 +399,11 @@ class _AddRecipeScreenState extends State<AddRecipeScreen> {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   : const Icon(Icons.save),
-              label: Text(_isSaving ? 'Ukládání...' : 'Uložit recept'),
+              label: Text(
+                _isSaving
+                    ? 'Ukládání...'
+                    : (_isEditMode ? 'Uložit změny' : 'Uložit recept'),
+              ),
             ),
           ],
         ),
