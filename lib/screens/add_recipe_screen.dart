@@ -15,24 +15,87 @@ class _AddRecipeScreenState extends State<AddRecipeScreen> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
   final TextEditingController _ingredientsController = TextEditingController();
-  final TextEditingController _stepsController = TextEditingController();
+  final TextEditingController _customStepLabelController = TextEditingController();
+  final TextEditingController _stepTextController = TextEditingController();
 
   final FirestoreService _firestoreService = FirestoreService();
 
   bool _isSaving = false;
+  String _selectedStepLabel = '1';
+  final List<Map<String, String>> _steps = <Map<String, String>>[];
+
+  static const String _customLabelOption = 'Vlastní';
 
   @override
   void dispose() {
     _nameController.dispose();
     _descriptionController.dispose();
     _ingredientsController.dispose();
-    _stepsController.dispose();
+    _customStepLabelController.dispose();
+    _stepTextController.dispose();
     super.dispose();
+  }
+
+  void _addStep() {
+    final stepText = _stepTextController.text.trim();
+    if (stepText.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Vyplňte text kroku.')),
+      );
+      return;
+    }
+
+    String label = _selectedStepLabel;
+    if (_selectedStepLabel == _customLabelOption) {
+      label = _customStepLabelController.text.trim();
+      if (label.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Vyplňte vlastní označení kroku.')),
+        );
+        return;
+      }
+    }
+
+    setState(() {
+      _steps.add(
+        <String, String>{
+          'label': label,
+          'text': stepText,
+        },
+      );
+
+      _stepTextController.clear();
+      _customStepLabelController.clear();
+
+      // Keep next step adding fast by moving to next number where possible.
+      if (_selectedStepLabel != _customLabelOption) {
+        final current = int.tryParse(_selectedStepLabel) ?? 1;
+        final next = (current + 1).clamp(1, 15);
+        _selectedStepLabel = next.toString();
+      }
+    });
+  }
+
+  void _removeStep(int index) {
+    setState(() {
+      _steps.removeAt(index);
+    });
+  }
+
+  String _buildStepsText() {
+    return _steps.map((step) => '${step['label']}. ${step['text']}').join('\n');
   }
 
   Future<void> _saveRecipe() async {
     final isValid = _formKey.currentState?.validate() ?? false;
     if (!isValid) {
+      return;
+    }
+
+    if (_steps.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Přidejte alespoň jeden krok.')),
+      );
       return;
     }
 
@@ -45,7 +108,7 @@ class _AddRecipeScreenState extends State<AddRecipeScreen> {
         name: _nameController.text.trim(),
         description: _descriptionController.text.trim(),
         ingredients: _ingredientsController.text.trim(),
-        steps: _stepsController.text.trim(),
+        steps: _buildStepsText(),
       );
 
       if (!mounted) {
@@ -120,17 +183,87 @@ class _AddRecipeScreenState extends State<AddRecipeScreen> {
               maxLines: 4,
               validator: _requiredValidator,
             ),
+            const SizedBox(height: 20),
+            Text(
+              'Kroky receptu',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              initialValue: _selectedStepLabel,
+              decoration: const InputDecoration(
+                labelText: 'Číslo kroku',
+                border: OutlineInputBorder(),
+              ),
+              items: [
+                ...List<DropdownMenuItem<String>>.generate(
+                  15,
+                  (index) => DropdownMenuItem<String>(
+                    value: '${index + 1}',
+                    child: Text('${index + 1}'),
+                  ),
+                ),
+                const DropdownMenuItem<String>(
+                  value: _customLabelOption,
+                  child: Text(_customLabelOption),
+                ),
+              ],
+              onChanged: (value) {
+                if (value == null) {
+                  return;
+                }
+                setState(() {
+                  _selectedStepLabel = value;
+                });
+              },
+            ),
+            if (_selectedStepLabel == _customLabelOption) ...[
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _customStepLabelController,
+                decoration: const InputDecoration(
+                  labelText: 'Vlastní označení kroku',
+                  border: OutlineInputBorder(),
+                  hintText: 'Např.: A nebo Příprava',
+                ),
+              ),
+            ],
             const SizedBox(height: 12),
             TextFormField(
-              controller: _stepsController,
+              controller: _stepTextController,
               decoration: const InputDecoration(
-                labelText: 'Postup',
+                labelText: 'Text kroku',
                 border: OutlineInputBorder(),
-                hintText: 'Popište postup vaření',
+                hintText: 'Co se má v tomto kroku udělat?',
               ),
-              maxLines: 5,
-              validator: _requiredValidator,
+              maxLines: 3,
             ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: _addStep,
+              icon: const Icon(Icons.add),
+              label: const Text('Přidat krok'),
+            ),
+            const SizedBox(height: 12),
+            if (_steps.isEmpty)
+              const Text('Zatím nejsou přidané žádné kroky.')
+            else
+              Column(
+                children: List<Widget>.generate(_steps.length, (index) {
+                  final step = _steps[index];
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    child: ListTile(
+                      title: Text('${step['label']}. ${step['text']}'),
+                      trailing: IconButton(
+                        icon: const Icon(Icons.delete_outline),
+                        tooltip: 'Smazat krok',
+                        onPressed: () => _removeStep(index),
+                      ),
+                    ),
+                  );
+                }),
+              ),
             const SizedBox(height: 20),
             FilledButton.icon(
               onPressed: _isSaving ? null : _saveRecipe,
